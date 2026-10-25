@@ -1,0 +1,32 @@
+{
+  "name": "s3-presigned-demo-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.729.0",
+    "@aws-sdk/s3-request-presigner": "^3.729.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "aws-sdk-client-mock": "^4.1.0",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "supertest": "^7.0.0",
+    "vitest": "^3.0.0"
+  }
+}

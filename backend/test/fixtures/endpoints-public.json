@@ -1,0 +1,13 @@
+[
+  {
+    "id": "legacy",
+    "name": "Ancien format",
+    "endpoint": "http://rustfs:9000",
+    "publicEndpoint": "http://localhost:9000",
+    "region": "us-east-1",
+    "bucket": "demo-bucket",
+    "accessKeyId": "a",
+    "secretAccessKey": "b",
+    "forcePathStyle": true
+  }
+]

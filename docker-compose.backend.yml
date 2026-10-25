@@ -1,0 +1,4 @@
+# Backend + storage, sans le front (front lancé hors Docker : cd frontend && npm run dev)
+services:
+  frontend:
+    profiles: ["disabled"]

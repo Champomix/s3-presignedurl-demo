@@ -1,0 +1,83 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    # Le port 9000 est publié par la gateway, pas par RustFS
+    ports:
+      - "9001:9001"
+    volumes:
+      - rustfs-data:/data
+    networks:
+      - s3-net
+
+  gateway:
+    image: nginx:alpine
+    container_name: gateway
+    depends_on:
+      - rustfs
+    # 3001 : backend, qui partage la pile réseau de la gateway
+    ports:
+      - "9000:9000"
+      - "3001:3001"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - s3-net
+
+  backend:
+    build: ./backend
+    container_name: backend
+    # localhost:9000 = la gateway, comme pour le navigateur : une seule URL d'endpoint
+    network_mode: service:gateway
+    depends_on:
+      - gateway
+    environment:
+      PORT: ${PORT}
+      PRESIGN_EXPIRES_DEFAULT: ${PRESIGN_EXPIRES_DEFAULT}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+    volumes:
+      - ./backend/config/endpoints.json:/app/config/endpoints.json:ro
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    depends_on:
+      - gateway
+    ports:
+      - "8080:80"
+    networks:
+      - s3-net
+
+  # One-shot idempotent : crée le bucket s'il manque et réapplique le CORS à chaque "up"
+  storage-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - rustfs
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+    volumes:
+      - ./storage/init-bucket.sh:/init.sh:ro
+      - ./storage/cors.json:/cors.json:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    restart: "no"
+    networks:
+      - s3-net
+
+volumes:
+  rustfs-data:
+
+networks:
+  s3-net:
+    driver: bridge

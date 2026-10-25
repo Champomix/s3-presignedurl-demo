@@ -1,0 +1,12 @@
+[
+  {
+    "id": "missing",
+    "name": "Variable absente",
+    "endpoint": "http://localhost:9000",
+    "region": "us-east-1",
+    "bucket": "demo-bucket",
+    "accessKeyId": "${UNDEFINED_VAR_FOR_TEST}",
+    "secretAccessKey": "b",
+    "forcePathStyle": true
+  }
+]

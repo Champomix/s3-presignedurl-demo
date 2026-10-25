@@ -1,0 +1,6 @@
+# Storage seul : RustFS + gateway + storage-init
+services:
+  backend:
+    profiles: ["disabled"]
+  frontend:
+    profiles: ["disabled"]

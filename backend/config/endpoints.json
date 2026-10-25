@@ -1,0 +1,12 @@
+[
+  {
+    "id": "rustfs-local",
+    "name": "RustFS local",
+    "endpoint": "http://localhost:9000",
+    "region": "us-east-1",
+    "bucket": "demo-bucket",
+    "accessKeyId": "${RUSTFS_ACCESS_KEY}",
+    "secretAccessKey": "${RUSTFS_SECRET_KEY}",
+    "forcePathStyle": true
+  }
+]

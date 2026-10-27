@@ -11,6 +11,9 @@ export class AppError extends Error {
 const S3_NOT_FOUND = new Set(['NoSuchKey', 'NoSuchBucket', 'NotFound']);
 const S3_FORBIDDEN = new Set(['AccessDenied', 'SignatureDoesNotMatch', 'InvalidAccessKeyId']);
 
+// Erreurs réseau / TLS levées par Node lors de la connexion au stockage
+const S3_UNREACHABLE = /^(ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_|ERR_TLS|ERR_SSL)/;
+
 function send(res, status, code, message) {
   res.status(status).json({ error: { code, message } });
 }
@@ -27,6 +30,10 @@ export function errorHandler(err, req, res, _next) {
   if (S3_FORBIDDEN.has(err.name)) {
     console.error(`Erreur S3 ${err.name} : ${err.message} (vérifier les identifiants, l'endpoint et le Host transmis par la gateway)`);
     return send(res, 403, 'S3_FORBIDDEN', 'Accès refusé par le stockage');
+  }
+  const netCode = err.code ?? err.cause?.code ?? '';
+  if (S3_UNREACHABLE.test(netCode) || err.name === 'TimeoutError') {
+    return send(res, 502, 'S3_UNREACHABLE', `Stockage injoignable (${netCode || err.name})`);
   }
   console.error(err);
   send(res, 500, 'INTERNAL_ERROR', 'Erreur interne');

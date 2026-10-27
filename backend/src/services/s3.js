@@ -1,3 +1,4 @@
+import { Agent } from 'node:https';
 import {
   S3Client,
   PutObjectCommand,
@@ -17,12 +18,32 @@ export function getS3Client(cfg) {
       region: cfg.region,
       credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
       forcePathStyle: cfg.forcePathStyle,
+      // Certificat auto-signé : ne concerne que les appels serveur (list/head), pas les URLs présignées
+      ...(cfg.allowSelfSigned && { requestHandler: { httpsAgent: new Agent({ rejectUnauthorized: false }) } }),
       // Sinon le SDK ajoute un checksum CRC32 à l'URL signée, que le navigateur ne peut pas fournir
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
     }));
   }
   return clients.get(cfg.id);
+}
+
+// Trace les échecs de connexion (DNS, refus, timeout, certificat) avec l'endpoint concerné
+async function send(cfg, command) {
+  const started = Date.now();
+  try {
+    return await getS3Client(cfg).send(command);
+  } catch (err) {
+    const cause = err.cause ?? {};
+    console.error(
+      `[s3] ${command.constructor.name} ${cfg.id} ${cfg.endpoint} bucket=${cfg.bucket} échec après ${Date.now() - started} ms : ` +
+      `name=${err.name} code=${err.code ?? cause.code ?? '-'} message="${err.message}"` +
+      (err.$metadata?.httpStatusCode ? ` http=${err.$metadata.httpStatusCode}` : '') +
+      (cause.message ? ` cause="${cause.message}"` : '') +
+      (cfg.allowSelfSigned ? '' : ' allowSelfSigned=false'),
+    );
+    throw err;
+  }
 }
 
 export function presignUpload(cfg, { key, contentType, expiresIn }) {
@@ -37,7 +58,8 @@ export function presignDownload(cfg, { key, expiresIn }) {
 }
 
 export async function listFiles(cfg, { prefix, maxKeys }) {
-  const res = await getS3Client(cfg).send(
+  const res = await send(
+    cfg,
     new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: prefix, MaxKeys: maxKeys }),
   );
   return (res.Contents ?? []).map((o) => ({
@@ -49,7 +71,7 @@ export async function listFiles(cfg, { prefix, maxKeys }) {
 }
 
 export async function headFile(cfg, key) {
-  const res = await getS3Client(cfg).send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  const res = await send(cfg, new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
   return {
     key,
     size: res.ContentLength,

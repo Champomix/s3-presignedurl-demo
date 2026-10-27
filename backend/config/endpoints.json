@@ -8,5 +8,16 @@
     "accessKeyId": "${RUSTFS_ACCESS_KEY}",
     "secretAccessKey": "${RUSTFS_SECRET_KEY}",
     "forcePathStyle": true
+  },
+  {
+    "id": "minio-tls",
+    "name": "MinIO HTTPS (auto-signé)",
+    "endpoint": "${MINIO_TLS_ENDPOINT}",
+    "region": "${MINIO_TLS_REGION}",
+    "bucket": "${MINIO_TLS_BUCKET}",
+    "accessKeyId": "${MINIO_TLS_ACCESS_KEY}",
+    "secretAccessKey": "${MINIO_TLS_SECRET_KEY}",
+    "forcePathStyle": true,
+    "allowSelfSigned": true
   }
 ]

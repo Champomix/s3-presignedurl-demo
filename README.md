@@ -33,7 +33,7 @@ docker compose up --build
 
 Puis ouvrir http://localhost:8080 :
 
-1. Choisir l'endpoint `RustFS local`.
+1. Choisir l'endpoint `RustFS local` (ou `MinIO HTTPS (auto-signé)` une fois les variables `MINIO_TLS_*` renseignées, voir "Endpoint HTTPS avec certificat auto-signé").
 2. Sélectionner un fichier et cliquer **Uploader** : l'URL présignée PUT s'affiche avec son compte à rebours, la barre de progression avance.
 3. Le fichier apparaît dans la liste : **Télécharger** génère une URL présignée GET et lance le téléchargement.
 
@@ -65,6 +65,25 @@ Conséquences pratiques :
 - Backend lancé hors Docker (`npm start`) : `localhost:9000` reste joignable, aucune configuration à changer.
 
 Sur AWS S3, le principe est identique : l'endpoint (`https://s3.eu-west-1.amazonaws.com`) est le même côté serveur et côté navigateur.
+
+## Endpoint HTTPS avec certificat auto-signé
+
+`endpoints.json` contient un second endpoint, `minio-tls`, prévu pour un MinIO (ou tout S3) en HTTPS dont le certificat est auto-signé. Ses informations viennent du `.env` :
+
+```bash
+MINIO_TLS_ENDPOINT=https://minio.example.lan:9000
+MINIO_TLS_REGION=us-east-1
+MINIO_TLS_BUCKET=demo-bucket
+MINIO_TLS_ACCESS_KEY=minioadmin
+MINIO_TLS_SECRET_KEY=minioadmin
+```
+
+Ces cinq variables sont obligatoires : si l'une manque, le backend refuse de démarrer (retirer l'entrée de `endpoints.json` si l'endpoint n'est pas utilisé).
+
+Le champ `"allowSelfSigned": true` (défaut `false`, par endpoint) désactive la vérification du certificat pour les appels **du backend** vers ce stockage (liste, métadonnées). Il ne concerne pas les URL présignées, que le navigateur appelle directement :
+
+- ouvrir une fois l'URL de l'endpoint dans le navigateur et accepter le certificat, sinon les PUT et GET présignés échouent avec une erreur réseau ;
+- configurer le CORS du bucket pour autoriser l'origine du front (`http://localhost:8080`) : `storage-init` ne le fait que pour RustFS.
 
 ## Développer une couche à la fois
 
@@ -108,8 +127,12 @@ Variables du fichier `.env` (voir [.env.example](.env.example)) :
 | `PRESIGN_EXPIRES_DEFAULT` | `300` | durée de validité des URL présignées (secondes) |
 | `MAX_UPLOAD_SIZE` | `104857600` | taille maximale acceptée avant signature (octets) |
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | origines autorisées sur l'API |
+| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | vide | proxy transmis aux builds Docker (`npm ci` / `npm install`) |
+| `MINIO_TLS_*` | voir ci-dessus | endpoint HTTPS auto-signé (`ENDPOINT`, `REGION`, `BUCKET`, `ACCESS_KEY`, `SECRET_KEY`) |
 
 Endpoints S3 : [backend/config/endpoints.json](backend/config/endpoints.json). Les valeurs `${VAR}` sont remplacées par les variables d'environnement. Le fichier est lu au démarrage : redémarrer le backend après modification (`docker compose restart backend`).
+
+Les builds Docker transmettent `HTTP_PROXY`, `HTTPS_PROXY` et `NO_PROXY` à `npm ci` / `npm install` (arguments de build du backend et du frontend). Un proxy qui réécrit le certificat TLS nécessite d'ajouter son autorité de certification à l'image.
 
 CORS du bucket : [storage/cors.json](storage/cors.json), appliqué par `storage-init` à chaque `docker compose up`.
 
@@ -125,6 +148,12 @@ CORS du bucket : [storage/cors.json](storage/cors.json), appliqué par `storage-
 - L'origine du front (`http://localhost:8080` ou `http://localhost:5173`) doit figurer dans [storage/cors.json](storage/cors.json).
 - Après modification : `docker compose up storage-init` pour réappliquer la configuration.
 - Vérifier : `docker compose run --rm --entrypoint sh storage-init -c 'aws --endpoint-url http://rustfs:9000 s3api get-bucket-cors --bucket "$S3_BUCKET"'`.
+
+**`502 S3_UNREACHABLE` ou liste de fichiers en erreur**
+- Le backend trace chaque échec de connexion au stockage : `docker compose logs backend`, lignes `[s3] ...` avec la commande, l'endpoint, le bucket, la durée, le code d'erreur (`ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`, `DEPTH_ZERO_SELF_SIGNED_CERT`...) et la cause.
+- Erreur de certificat (`SELF_SIGNED`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE`) : mettre `"allowSelfSigned": true` sur l'endpoint concerné.
+- `ENOTFOUND` / `ECONNREFUSED` : vérifier l'URL `endpoint` et que le port est joignable depuis le conteneur backend.
+- La ligne se termine par `allowSelfSigned=false` quand l'option n'est pas activée pour l'endpoint.
 
 **Port 9000 (ou 8080, 3001, 9001) déjà utilisé**
 - Identifier le processus : `netstat -ano | findstr :9000` (Windows) ou `lsof -i :9000` (Linux/macOS).

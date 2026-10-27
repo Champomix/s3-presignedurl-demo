@@ -2,7 +2,7 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 # npm ci dès que package-lock.json est versionné
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev --loglevel verbose; else npm install --omit=dev --loglevel verbose; fi
 
 FROM node:22-alpine
 WORKDIR /app

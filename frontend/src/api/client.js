@@ -12,6 +12,10 @@ export async function listFiles(endpointId) {
   return (await request({ url: `${API}/files?endpointId=${encodeURIComponent(endpointId)}` })).data.files;
 }
 
+export async function deleteFile(endpointId, key) {
+  await request({ url: `${API}/files/${encodeURIComponent(endpointId)}/${encodeURIComponent(key)}`, method: 'DELETE' });
+}
+
 export async function presignUpload(body) {
   return withExpiry((await request({ url: `${API}/presign/upload`, method: 'POST', body })).data);
 }

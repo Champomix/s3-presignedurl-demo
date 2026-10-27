@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   HeadObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -79,4 +80,8 @@ export async function headFile(cfg, key) {
     lastModified: res.LastModified,
     etag: res.ETag,
   };
+}
+
+export async function deleteFile(cfg, key) {
+  await send(cfg, new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
 }

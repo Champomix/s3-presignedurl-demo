@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import request from 'supertest';
 import { mockClient } from 'aws-sdk-client-mock';
-import { S3Client, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { app } from '../src/index.js';
 
 const s3Mock = mockClient(S3Client);
@@ -97,5 +97,24 @@ describe('GET /api/files', () => {
     s3Mock.on(HeadObjectCommand).rejects(Object.assign(new Error('not found'), { name: 'NotFound' }));
     const res = await request(app).get(`/api/files/rustfs-local/${encodeURIComponent('uploads/x.txt')}/meta`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/files', () => {
+  const url = (id) => `/api/files/${id}/${encodeURIComponent('uploads/x.txt')}`;
+
+  test('supprime l\'objet', async () => {
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await request(app).delete(url('rustfs-local'));
+    expect(res.status).toBe(204);
+    expect(s3Mock.commandCalls(DeleteObjectCommand)[0].args[0].input).toMatchObject({
+      Bucket: 'demo-bucket',
+      Key: 'uploads/x.txt',
+    });
+  });
+
+  test('403 si l\'endpoint est inconnu', async () => {
+    const res = await request(app).delete(url('inconnu'));
+    expect(res.status).toBe(403);
   });
 });

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { findEndpoint } from '../config/loadEndpoints.js';
-import { listFiles, headFile } from '../services/s3.js';
+import { listFiles, headFile, deleteFile } from '../services/s3.js';
 
 const MAX_KEYS = 1000;
 
@@ -30,6 +30,16 @@ export function filesRouter(endpoints) {
     try {
       const cfg = findEndpoint(endpoints, req.params.endpointId);
       res.json(await headFile(cfg, req.params.key));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/:endpointId/:key', async (req, res, next) => {
+    try {
+      const cfg = findEndpoint(endpoints, req.params.endpointId);
+      await deleteFile(cfg, req.params.key);
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { presignDownload } from '../api/client.js';
+import { deleteFile, presignDownload } from '../api/client.js';
 import { downloadFile } from '../api/presigned.js';
 import { ProgressBar } from './ProgressBar.jsx';
 
@@ -35,6 +35,17 @@ export function FileList({ endpointId, files, onRefresh, onPresigned, onError })
     }
   };
 
+  const remove = async (key) => {
+    if (!window.confirm(`Supprimer ${key} ?`)) return;
+    onError(null);
+    try {
+      await deleteFile(endpointId, key);
+      onRefresh();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   return (
     <section className="panel">
       <div className="row">
@@ -58,7 +69,10 @@ export function FileList({ endpointId, files, onRefresh, onPresigned, onError })
                   {download?.key === f.key ? (
                     <ProgressBar loaded={download.loaded} total={download.total} />
                   ) : (
-                    <button onClick={() => start(f.key)} disabled={download !== null}>Télécharger</button>
+                    <>
+                      <button onClick={() => start(f.key)} disabled={download !== null}>Télécharger</button>
+                      <button onClick={() => remove(f.key)} disabled={download !== null}>Supprimer</button>
+                    </>
                   )}
                 </td>
               </tr>

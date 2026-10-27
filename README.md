@@ -36,6 +36,8 @@ Puis ouvrir http://localhost:8080 :
 1. Choisir l'endpoint `RustFS local` (ou `MinIO HTTPS (auto-signé)` une fois les variables `MINIO_TLS_*` renseignées, voir "Endpoint HTTPS avec certificat auto-signé").
 2. Sélectionner un fichier et cliquer **Uploader** : l'URL présignée PUT s'affiche avec son compte à rebours, la barre de progression avance.
 3. Le fichier apparaît dans la liste : **Télécharger** génère une URL présignée GET et lance le téléchargement.
+4. **Supprimer** retire le fichier du bucket après confirmation (suppression faite par le backend).
+5. Le panneau **Console S3**, en bas de page, affiche les commandes S3 réalisées par l'application, avec leur équivalent AWS CLI et HTTP.
 
 ## URLs
 
@@ -65,6 +67,18 @@ Conséquences pratiques :
 - Backend lancé hors Docker (`npm start`) : `localhost:9000` reste joignable, aucune configuration à changer.
 
 Sur AWS S3, le principe est identique : l'endpoint (`https://s3.eu-west-1.amazonaws.com`) est le même côté serveur et côté navigateur.
+
+## Console S3
+
+La console liste, au fil des actions, les opérations S3 de l'application :
+
+| Opération | Exécutée par | Déclenchée par |
+|---|---|---|
+| `ListObjectsV2`, `HeadObject`, `DeleteObject` | backend | liste, métadonnées, suppression |
+| `Presign` | backend (signature locale, aucun appel au stockage) | upload et download |
+| `PutObject`, `GetObject` | navigateur, avec l'URL présignée | upload et download |
+
+Chaque entrée montre la commande `aws s3api ...` et la requête HTTP équivalentes. Les signatures ne sont jamais affichées (`?<signature>`). Le backend garde les 100 dernières opérations en mémoire (`GET /api/console?after=<id>`) ; le résultat des PUT et GET du navigateur n'y figure pas, le backend ne les voyant pas passer.
 
 ## Endpoint HTTPS avec certificat auto-signé
 

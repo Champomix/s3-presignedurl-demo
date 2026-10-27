@@ -4,6 +4,7 @@ import { EndpointSelector } from './components/EndpointSelector.jsx';
 import { UploadPanel } from './components/UploadPanel.jsx';
 import { PresignedUrlBox } from './components/PresignedUrlBox.jsx';
 import { FileList } from './components/FileList.jsx';
+import { ConsolePanel } from './components/ConsolePanel.jsx';
 
 export default function App() {
   const [endpoints, setEndpoints] = useState([]);
@@ -52,6 +53,7 @@ export default function App() {
         onPresigned={setPresigned}
         onError={onError}
       />
+      <ConsolePanel />
     </main>
   );
 }

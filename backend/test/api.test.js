@@ -118,3 +118,17 @@ describe('DELETE /api/files', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('GET /api/console', () => {
+  test('journalise les opérations S3 sans signature', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({ Contents: [] });
+    const before = (await request(app).get('/api/console')).body.at(-1)?.id ?? 0;
+    await request(app).get('/api/files?endpointId=rustfs-local');
+    await upload(validUpload);
+    const events = (await request(app).get(`/api/console?after=${before}`)).body;
+    expect(events.map((e) => e.operation)).toEqual(['ListObjectsV2', 'Presign', 'PutObject']);
+    expect(events[0]).toMatchObject({ actor: 'backend', status: 'ok' });
+    expect(events[2].actor).toBe('navigateur');
+    expect(JSON.stringify(events)).not.toContain('X-Amz-Signature');
+  });
+});

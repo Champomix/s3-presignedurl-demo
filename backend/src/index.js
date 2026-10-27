@@ -7,6 +7,7 @@ import { loadEndpoints } from './config/loadEndpoints.js';
 import { endpointsRouter } from './routes/endpoints.js';
 import { presignRouter } from './routes/presign.js';
 import { filesRouter } from './routes/files.js';
+import { consoleRouter } from './routes/console.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const PORT = Number(process.env.PORT || 3001);
@@ -29,6 +30,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/endpoints', endpointsRouter(endpoints));
 app.use('/api/presign', presignRouter(endpoints, { expiresIn: DEFAULT_EXPIRES_IN, maxUploadSize: MAX_UPLOAD_SIZE }));
 app.use('/api/files', filesRouter(endpoints));
+app.use('/api/console', consoleRouter());
 app.use(errorHandler);
 
 if (!process.env.VITEST) {

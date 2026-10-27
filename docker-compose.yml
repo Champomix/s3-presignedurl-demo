@@ -31,7 +31,12 @@ services:
       - s3-net
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
     container_name: backend
     # localhost:9000 = la gateway, comme pour le navigateur : une seule URL d'endpoint
     network_mode: service:gateway
@@ -44,11 +49,21 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      MINIO_TLS_ENDPOINT: ${MINIO_TLS_ENDPOINT}
+      MINIO_TLS_REGION: ${MINIO_TLS_REGION}
+      MINIO_TLS_BUCKET: ${MINIO_TLS_BUCKET}
+      MINIO_TLS_ACCESS_KEY: ${MINIO_TLS_ACCESS_KEY}
+      MINIO_TLS_SECRET_KEY: ${MINIO_TLS_SECRET_KEY}
     volumes:
       - ./backend/config/endpoints.json:/app/config/endpoints.json:ro
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
     container_name: frontend
     depends_on:
       - gateway

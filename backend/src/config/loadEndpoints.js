@@ -13,6 +13,7 @@ const endpointSchema = z.object({
   accessKeyId: z.string().min(1),
   secretAccessKey: z.string().min(1),
   forcePathStyle: z.boolean().default(false),
+  allowSelfSigned: z.boolean().default(false),
 });
 
 function expandEnv(value) {

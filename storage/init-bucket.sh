@@ -15,4 +15,11 @@ done
 $S3 head-bucket --bucket "$BUCKET" 2>/dev/null || $S3 create-bucket --bucket "$BUCKET"
 $S3 put-bucket-cors --bucket "$BUCKET" --cors-configuration file:///cors.json
 $S3 get-bucket-cors --bucket "$BUCKET"
+$S3 put-bucket-notification-configuration --bucket "$BUCKET" --notification-configuration '{
+  "QueueConfigurations": [{
+    "Id": "all-object-events",
+    "QueueArn": "arn:rustfs:sqs:'"${S3_REGION:-us-east-1}"':primary:kafka",
+    "Events": ["s3:ObjectCreated:*", "s3:ObjectRemoved:*", "s3:ObjectAccessed:*"]
+  }]
+}'
 echo "Bucket $BUCKET prêt (privé par défaut)."

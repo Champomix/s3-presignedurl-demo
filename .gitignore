@@ -151,3 +151,5 @@ vite.config.ts.timestamp-*
 # Playwright
 test-results/
 playwright-report/
+
+/storage/kafka-ca.pem

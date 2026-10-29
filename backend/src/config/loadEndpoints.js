@@ -10,6 +10,7 @@ const endpointSchema = z.object({
   endpoint: z.url(),
   region: z.string().min(1),
   bucket: z.string().min(1),
+  buckets: z.array(z.object({ name: z.string().min(1), writeOnly: z.boolean().default(false) })).optional(),
   accessKeyId: z.string().min(1),
   secretAccessKey: z.string().min(1),
   forcePathStyle: z.boolean().default(false),
@@ -36,7 +37,23 @@ export function loadEndpoints(file = process.env.ENDPOINTS_FILE || DEFAULT_FILE)
   const expanded = entries.map((entry) =>
     Object.fromEntries(Object.entries(entry).map(([k, v]) => [k, typeof v === 'string' ? expandEnv(v) : v])),
   );
-  return z.array(endpointSchema).parse(expanded);
+  return z.array(endpointSchema).parse(expanded).map((e) => {
+    const buckets = e.buckets ?? [];
+    if (!buckets.some((b) => b.name === e.bucket)) buckets.unshift({ name: e.bucket, writeOnly: false });
+    return { ...e, buckets };
+  });
+}
+
+// Retourne la config avec le bucket choisi (défaut : cfg.bucket) ; refuse tout bucket non déclaré
+export function selectBucket(cfg, name) {
+  const b = cfg.buckets.find((x) => x.name === (name ?? cfg.bucket));
+  if (!b) throw new AppError(403, 'UNKNOWN_BUCKET', `Bucket inconnu : ${name}`);
+  return { ...cfg, bucket: b.name, writeOnly: b.writeOnly };
+}
+
+// Bucket en écriture seule : get, list et head interdits pour l'utilisateur
+export function assertReadable(cfg) {
+  if (cfg.writeOnly) throw new AppError(403, 'WRITE_ONLY_BUCKET', `Le bucket ${cfg.bucket} est en écriture seule`);
 }
 
 export function findEndpoint(endpoints, id) {

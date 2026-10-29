@@ -5,8 +5,8 @@ export function endpointsRouter(endpoints) {
 
   // Jamais de secrets vers le front
   router.get('/', (req, res) => {
-    res.json(endpoints.map(({ id, name, endpoint, region, bucket, forcePathStyle }) => (
-      { id, name, endpoint, region, bucket, forcePathStyle }
+    res.json(endpoints.map(({ id, name, endpoint, region, bucket, buckets, forcePathStyle }) => (
+      { id, name, endpoint, region, bucket, buckets, forcePathStyle }
     )));
   });
 

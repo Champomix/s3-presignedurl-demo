@@ -5,6 +5,10 @@
     "endpoint": "http://localhost:9000",
     "region": "us-east-1",
     "bucket": "demo-bucket",
+    "buckets": [
+      { "name": "demo-bucket" },
+      { "name": "drop-bucket", "writeOnly": true }
+    ],
     "accessKeyId": "${RUSTFS_ACCESS_KEY}",
     "secretAccessKey": "${RUSTFS_SECRET_KEY}",
     "forcePathStyle": true

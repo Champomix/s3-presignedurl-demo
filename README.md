@@ -34,10 +34,11 @@ docker compose up --build
 Puis ouvrir http://localhost:8080 :
 
 1. Choisir l'endpoint `RustFS local` (ou `MinIO HTTPS (auto-signé)` une fois les variables `MINIO_TLS_*` renseignées, voir "Endpoint HTTPS avec certificat auto-signé").
-2. Sélectionner un fichier et cliquer **Uploader** : l'URL présignée PUT s'affiche avec son compte à rebours, la barre de progression avance.
-3. Le fichier apparaît dans la liste : **Télécharger** génère une URL présignée GET et lance le téléchargement.
-4. **Supprimer** retire le fichier du bucket après confirmation (suppression faite par le backend).
-5. Le panneau **Console S3**, en bas de page, affiche les commandes S3 réalisées par l'application, avec leur équivalent AWS CLI et HTTP.
+2. Choisir le **bucket de destination** (liste propre à l'endpoint, voir "Buckets").
+3. Sélectionner un fichier et cliquer **Uploader** : l'URL présignée PUT s'affiche avec son compte à rebours, la barre de progression avance.
+4. Le fichier apparaît dans la liste : **Télécharger** génère une URL présignée GET et lance le téléchargement.
+5. **Supprimer** retire le fichier du bucket après confirmation (suppression faite par le backend).
+6. Le panneau **Console S3**, en bas de page, affiche les commandes S3 réalisées par l'application, avec leur équivalent AWS CLI et HTTP.
 
 ## URLs
 
@@ -99,6 +100,56 @@ Le champ `"allowSelfSigned": true` (défaut `false`, par endpoint) désactive la
 - ouvrir une fois l'URL de l'endpoint dans le navigateur et accepter le certificat, sinon les PUT et GET présignés échouent avec une erreur réseau ;
 - configurer le CORS du bucket pour autoriser l'origine du front (`http://localhost:8080`) : `storage-init` ne le fait que pour RustFS.
 
+## Buckets
+
+Chaque entrée de `endpoints.json` peut déclarer plusieurs buckets de destination :
+
+```json
+"bucket": "demo-bucket",
+"buckets": [
+  { "name": "demo-bucket" },
+  { "name": "drop-bucket", "writeOnly": true }
+]
+```
+
+- `bucket` est le bucket par défaut (ajouté à `buckets` s'il n'y figure pas). Sans `buckets`, l'endpoint n'a que ce bucket.
+- `"writeOnly": true` pour un bucket où l'utilisateur n'a ni `GetObject`, ni `ListBucket`, ni `HeadObject`. Le backend refuse alors la liste, les métadonnées et le téléchargement (403 `WRITE_ONLY_BUCKET`), et l'interface n'affiche pas la liste des fichiers. Seul l'upload (PUT présigné) est possible. La suppression n'est pas bloquée par l'application.
+- Un bucket absent de la liste est refusé (403 `UNKNOWN_BUCKET`). Le front ne peut pas viser un bucket arbitraire.
+- Ce blocage est une protection de l'application, pas un droit : les droits réels restent ceux de l'utilisateur côté stockage.
+- Le CORS de chaque bucket utilisé par le navigateur doit autoriser l'origine du front. `storage-init` l'applique à `demo-bucket` et `drop-bucket` sur RustFS.
+
+## Notifications d'événements vers Kafka (optionnel)
+
+RustFS peut publier un événement S3 dans un topic Kafka (SASL/PLAIN, TLS avec certificat auto-signé) à chaque action sur un objet (`s3:ObjectCreated:*`, `s3:ObjectRemoved:*`, `s3:ObjectAccessed:*`). C'est désactivé par défaut.
+
+1. Renseigner dans `.env` : `KAFKA_BROKERS`, `KAFKA_TOPIC`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_CA_FILE` (voir [.env.example](.env.example)).
+2. Récupérer le certificat du broker dans `storage/kafka-ca.pem` : `./storage/fetch-kafka-ca.sh [host:port]`. Vérifier l'empreinte auprès de l'administrateur du broker.
+3. Démarrer avec l'override Kafka :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.kafka.yml up --build
+```
+
+[docker-compose.kafka.yml](docker-compose.kafka.yml) configure le target `primary` de RustFS et `storage-init` associe `demo-bucket` à l'ARN `arn:rustfs:sqs:<région>:primary:kafka`. La file d'attente disque (événements non livrés si Kafka est injoignable) est dans le volume `rustfs-queue`, hors de `/data` (un dossier de `/data` apparaîtrait comme un bucket).
+
+Les noms de variables `RUSTFS_NOTIFY_KAFKA_*` et l'ARN n'ont pas été validés sur une instance réelle : en cas d'échec de `put-bucket-notification-configuration`, consulter `docker compose logs rustfs storage-init`.
+
+## Migration depuis MinIO
+
+[storage/migrate-minio-to-rustfs.sh](storage/migrate-minio-to-rustfs.sh) (prérequis : `mc`, `jq`) copie vers RustFS les buckets, policies, utilisateurs, groupes, clés d'API (service accounts), notifications d'événements et règles de lifecycle.
+
+```bash
+SRC_URL=https://minio.example.lan:9000 SRC_ACCESS_KEY=... SRC_SECRET_KEY=... \
+DST_URL=http://localhost:9000 DST_ACCESS_KEY=rustfsadmin DST_SECRET_KEY=rustfsadmin \
+DST_EVENT_ARN=arn:rustfs:sqs:us-east-1:primary:kafka MC_FLAGS=--insecure \
+./storage/migrate-minio-to-rustfs.sh --dry-run   # retirer --dry-run pour exécuter
+```
+
+- `--dry-run` (ou `DRY_RUN=1`) lit MinIO mais affiche seulement les écritures sur RustFS.
+- Les secrets MinIO ne sont pas exportables : un secret est généré pour chaque utilisateur et chaque clé d'API, écrit dans `users-secrets.out.csv` et `apikeys-secrets.out.csv` (ignorés par git). `USERS_SECRETS_FILE` permet d'imposer les secrets des utilisateurs.
+- Les objets ne sont pas copiés (`mc mirror`). Les transitions de lifecycle vers un tier distant, le versioning, les tags et les policies de bucket ne sont pas migrés.
+- Script non testé sur une instance réelle : tester d'abord sur un RustFS vide.
+
 ## Développer une couche à la fois
 
 ```bash
@@ -143,6 +194,7 @@ Variables du fichier `.env` (voir [.env.example](.env.example)) :
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | origines autorisées sur l'API |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | vide | proxy transmis aux builds Docker (`npm ci` / `npm install`) |
 | `MINIO_TLS_*` | voir ci-dessus | endpoint HTTPS auto-signé (`ENDPOINT`, `REGION`, `BUCKET`, `ACCESS_KEY`, `SECRET_KEY`) |
+| `KAFKA_*` | vide | notifications Kafka, seulement avec `docker-compose.kafka.yml` (`BROKERS`, `TOPIC`, `SASL_USERNAME`, `SASL_PASSWORD`, `CA_FILE`) |
 
 Endpoints S3 : [backend/config/endpoints.json](backend/config/endpoints.json). Les valeurs `${VAR}` sont remplacées par les variables d'environnement. Le fichier est lu au démarrage : redémarrer le backend après modification (`docker compose restart backend`).
 

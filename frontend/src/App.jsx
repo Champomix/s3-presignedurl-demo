@@ -9,6 +9,7 @@ import { ConsolePanel } from './components/ConsolePanel.jsx';
 export default function App() {
   const [endpoints, setEndpoints] = useState([]);
   const [endpointId, setEndpointId] = useState('');
+  const [bucket, setBucket] = useState('');
   const [files, setFiles] = useState([]);
   const [presigned, setPresigned] = useState(null);
   const [error, setError] = useState(null);
@@ -28,9 +29,19 @@ export default function App() {
       .catch(onError);
   }, [onError]);
 
+  const writeOnly = endpoints.find((e) => e.id === endpointId)?.buckets.find((b) => b.name === bucket)?.writeOnly ?? false;
+
+  // Bucket par défaut de l'endpoint à chaque changement d'endpoint
+  useEffect(() => {
+    setBucket(endpoints.find((e) => e.id === endpointId)?.bucket ?? '');
+    setFiles([]);
+  }, [endpoints, endpointId]);
+
+  // Bucket en écriture seule : list/get/head interdits, on ne liste pas
   const refresh = useCallback(() => {
-    if (endpointId) listFiles(endpointId).then(setFiles).catch(onError);
-  }, [endpointId, onError]);
+    if (endpointId && bucket && !writeOnly) listFiles(endpointId, bucket).then(setFiles).catch(onError);
+    else setFiles([]);
+  }, [endpointId, bucket, writeOnly, onError]);
 
   useEffect(refresh, [refresh]);
 
@@ -43,11 +54,19 @@ export default function App() {
           <button onClick={() => setError(null)}>Fermer</button>
         </div>
       )}
-      <EndpointSelector endpoints={endpoints} value={endpointId} onChange={setEndpointId} />
-      <UploadPanel endpointId={endpointId} onPresigned={setPresigned} onUploaded={refresh} onError={onError} />
+      <EndpointSelector
+        endpoints={endpoints}
+        value={endpointId}
+        onChange={setEndpointId}
+        bucket={bucket}
+        onBucketChange={setBucket}
+      />
+      <UploadPanel endpointId={endpointId} bucket={bucket} onPresigned={setPresigned} onUploaded={refresh} onError={onError} />
       {presigned && <PresignedUrlBox key={presigned.url} presigned={presigned} />}
       <FileList
         endpointId={endpointId}
+        bucket={bucket}
+        writeOnly={writeOnly}
         files={files}
         onRefresh={refresh}
         onPresigned={setPresigned}

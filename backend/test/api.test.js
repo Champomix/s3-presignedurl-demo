@@ -74,6 +74,36 @@ test('POST /api/presign/download signe un GET', async () => {
   expect(res.body.url).toMatch(/X-Amz-Signature=/);
 });
 
+describe('bucket sélectionnable et écriture seule', () => {
+  test('GET /api/endpoints expose les buckets', async () => {
+    const res = await request(app).get('/api/endpoints');
+    const e = res.body.find((x) => x.id === 'rustfs-local');
+    expect(e.buckets).toContainEqual({ name: 'drop-bucket', writeOnly: true });
+  });
+
+  test('upload autorisé vers un bucket en écriture seule', async () => {
+    const res = await upload({ ...validUpload, bucket: 'drop-bucket' });
+    expect(res.status).toBe(200);
+    expect(res.body.url.startsWith('http://localhost:9000/drop-bucket/uploads/')).toBe(true);
+  });
+
+  test('bucket non déclaré refusé', async () => {
+    const res = await upload({ ...validUpload, bucket: 'autre' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('UNKNOWN_BUCKET');
+  });
+
+  test.each([
+    ['list', () => request(app).get('/api/files?endpointId=rustfs-local&bucket=drop-bucket')],
+    ['meta', () => request(app).get('/api/files/rustfs-local/uploads%2Fa.txt/meta?bucket=drop-bucket')],
+    ['download', () => request(app).post('/api/presign/download').send({ endpointId: 'rustfs-local', bucket: 'drop-bucket', key: 'a.txt' })],
+  ])('%s refusé sur un bucket en écriture seule', async (_, call) => {
+    const res = await call();
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('WRITE_ONLY_BUCKET');
+  });
+});
+
 describe('GET /api/files', () => {
   test('retourne la liste des objets', async () => {
     s3Mock.on(ListObjectsV2Command).resolves({

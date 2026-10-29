@@ -20,6 +20,23 @@ docker compose -f docker-compose.yml -f docker-compose.storage.yml up
 
 `storage-init` (image `amazon/aws-cli`) crée le bucket et applique `cors.json` via `put-bucket-cors`, puis s'arrête. Le bucket est privé par défaut.
 
+## Buckets
+
+`storage-init` crée `demo-bucket` et `drop-bucket` (destination en écriture seule côté application, voir [README](../README.md#buckets)) et applique le CORS aux deux.
+
+## Notifications Kafka (optionnel)
+
+```bash
+./storage/fetch-kafka-ca.sh kafka.example.lan:9093   # écrit storage/kafka-ca.pem
+docker compose -f docker-compose.yml -f docker-compose.kafka.yml up
+```
+
+`storage-init` ne configure la notification du bucket que si `docker-compose.kafka.yml` est utilisé (variable `KAFKA_NOTIFY=on`).
+
+## Migration depuis MinIO
+
+`./storage/migrate-minio-to-rustfs.sh --dry-run` : voir la section "Migration depuis MinIO" du [README](../README.md#migration-depuis-minio).
+
 ## Vérifications
 
 ```bash

@@ -35,6 +35,21 @@ h2 {
   flex-wrap: wrap;
 }
 
+.selectors {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.selectors label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 220px;
+  font-weight: 600;
+}
+
 .row h2 {
   margin: 0;
   flex: 1;

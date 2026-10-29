@@ -18,14 +18,14 @@ function formatSize(bytes) {
 // uploads/1700000000-photo.jpg -> photo.jpg
 const displayName = (key) => key.split('/').pop().replace(/^\d+-/, '');
 
-export function FileList({ endpointId, files, onRefresh, onPresigned, onError }) {
+export function FileList({ endpointId, bucket, writeOnly, files, onRefresh, onPresigned, onError }) {
   const [download, setDownload] = useState(null);
 
   const start = async (key) => {
     onError(null);
     setDownload({ key, loaded: 0, total: 0 });
     try {
-      const presigned = await presignDownload({ endpointId, key });
+      const presigned = await presignDownload({ endpointId, bucket, key });
       onPresigned(presigned);
       await downloadFile(presigned, displayName(key), ({ loaded, total }) => setDownload({ key, loaded, total }));
     } catch (err) {
@@ -39,7 +39,7 @@ export function FileList({ endpointId, files, onRefresh, onPresigned, onError })
     if (!window.confirm(`Supprimer ${key} ?`)) return;
     onError(null);
     try {
-      await deleteFile(endpointId, key);
+      await deleteFile(endpointId, bucket, key);
       onRefresh();
     } catch (err) {
       onError(err);
@@ -52,7 +52,9 @@ export function FileList({ endpointId, files, onRefresh, onPresigned, onError })
         <h2>Fichiers</h2>
         <button onClick={onRefresh}>Rafraîchir</button>
       </div>
-      {files.length === 0 ? (
+      {writeOnly ? (
+        <p className="muted">Bucket en écriture seule : liste et téléchargement indisponibles.</p>
+      ) : files.length === 0 ? (
         <p className="muted">Aucun fichier.</p>
       ) : (
         <table>

@@ -1,0 +1,27 @@
+# Active les notifications S3 vers Kafka (SASL/PLAIN + TLS) :
+#   docker compose -f docker-compose.yml -f docker-compose.kafka.yml up
+# Requiert KAFKA_* dans .env et storage/kafka-ca.pem (storage/fetch-kafka-ca.sh)
+services:
+  rustfs:
+    environment:
+      RUSTFS_NOTIFY_ENABLE: "true"
+      RUSTFS_NOTIFY_KAFKA_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_KAFKA_BROKERS_PRIMARY: ${KAFKA_BROKERS:?KAFKA_BROKERS manquant dans .env}
+      RUSTFS_NOTIFY_KAFKA_TOPIC_PRIMARY: ${KAFKA_TOPIC:?KAFKA_TOPIC manquant dans .env}
+      RUSTFS_NOTIFY_KAFKA_TLS_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_KAFKA_TLS_CA_PRIMARY: /certs/kafka-ca.pem
+      RUSTFS_NOTIFY_KAFKA_SASL_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_KAFKA_SASL_MECHANISM_PRIMARY: PLAIN
+      RUSTFS_NOTIFY_KAFKA_SASL_USERNAME_PRIMARY: ${KAFKA_SASL_USERNAME:?KAFKA_SASL_USERNAME manquant dans .env}
+      RUSTFS_NOTIFY_KAFKA_SASL_PASSWORD_PRIMARY: ${KAFKA_SASL_PASSWORD:?KAFKA_SASL_PASSWORD manquant dans .env}
+      # Hors de /data : un dossier de /data apparait comme un bucket
+      RUSTFS_NOTIFY_KAFKA_QUEUE_DIR_PRIMARY: /queue
+    volumes:
+      - ${KAFKA_CA_FILE:-./storage/kafka-ca.pem}:/certs/kafka-ca.pem:ro
+      - rustfs-queue:/queue
+  storage-init:
+    environment:
+      KAFKA_NOTIFY: "on"
+
+volumes:
+  rustfs-queue:

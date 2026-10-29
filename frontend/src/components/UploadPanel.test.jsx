@@ -10,7 +10,7 @@ vi.mock('../api/presigned.js', () => ({ uploadFile: vi.fn() }));
 const presigned = { url: 'http://localhost:9000/demo-bucket/uploads/1-a.txt', method: 'PUT', expiresIn: 300 };
 
 function setup() {
-  const props = { endpointId: 'rustfs-local', onPresigned: vi.fn(), onUploaded: vi.fn(), onError: vi.fn() };
+  const props = { endpointId: 'rustfs-local', bucket: 'demo-bucket', onPresigned: vi.fn(), onUploaded: vi.fn(), onError: vi.fn() };
   const { container } = render(<UploadPanel {...props} />);
   const file = new File(['hello'], 'a.txt', { type: 'text/plain' });
   fireEvent.change(container.querySelector('input[type=file]'), { target: { files: [file] } });
@@ -29,6 +29,7 @@ test('demande une URL présignée puis lance l\'upload', async () => {
   await waitFor(() => expect(props.onUploaded).toHaveBeenCalled());
   expect(presignUpload).toHaveBeenCalledWith({
     endpointId: 'rustfs-local',
+    bucket: 'demo-bucket',
     filename: 'a.txt',
     contentType: 'text/plain',
     size: 5,

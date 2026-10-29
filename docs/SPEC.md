@@ -58,6 +58,7 @@ s3-presigned-demo/
 ├── docker-compose.storage.yml     # Override : storage seul (désactive backend et frontend)
 ├── docker-compose.backend.yml     # Override : backend + storage (front lancé en local)
 ├── docker-compose.frontend.yml    # Override : frontend + storage (backend lancé en local)
+├── docker-compose.kafka.yml       # Override optionnel : notifications S3 RustFS vers Kafka (SASL/PLAIN + TLS)
 ├── README.md                      # Guide utilisateur
 ├── CLAUDE.md                      # Ce fichier (cadrage pour Claude Code)
 ├── .env.example                   # Variables d'environnement documentées
@@ -68,7 +69,9 @@ s3-presigned-demo/
 │
 ├── storage/
 │   ├── README.md                  # Notes RustFS / aws-cli
-│   ├── init-bucket.sh             # Crée le bucket + applique CORS + désactive anon
+│   ├── init-bucket.sh             # Crée les buckets + applique CORS (+ notification Kafka si KAFKA_NOTIFY=on)
+│   ├── fetch-kafka-ca.sh          # Récupère le certificat du broker Kafka dans kafka-ca.pem
+│   ├── migrate-minio-to-rustfs.sh # Migration MinIO -> RustFS (buckets, IAM, événements, lifecycle), --dry-run
 │   └── cors.json                  # Configuration CORS appliquée via aws s3api put-bucket-cors
 │
 ├── backend/
@@ -219,7 +222,8 @@ s3-presigned-demo/
 - **Support des variables d'environnement** : le loader remplace `${VAR}` par `process.env.VAR` (regex `/\${([A-Z0-9_]+)}/g`). Erreur claire si une variable attendue n'est pas définie.
 - **Route** : `GET /api/endpoints` renvoie la liste **SANS** `accessKeyId`/`secretAccessKey` (sécurité) et **SANS** `publicEndpoint` (qui n'existe plus).
 - **Rechargement à chaud** : le backend recharge `endpoints.json` à chaque requête (fs.watch) **ou** au démarrage (documenter le choix).
-- **UI** : `<EndpointSelector>` (select ou cartes) affiche `name` + `region` + `bucket`.
+- **Buckets** : champ optionnel `buckets: [{ name, writeOnly }]` par endpoint (`bucket` reste le défaut, ajouté à la liste s'il manque). Un bucket hors liste est refusé (403 `UNKNOWN_BUCKET`). Un bucket `writeOnly` (pas de get, list, head pour l'utilisateur) refuse liste, `meta` et téléchargement (403 `WRITE_ONLY_BUCKET`) ; seul l'upload est permis.
+- **UI** : `<EndpointSelector>` affiche `name` + `region` pour l'endpoint, et un second select pour le bucket de destination (libellé "écriture seule" si `writeOnly`). La liste des fichiers n'est pas appelée pour un bucket `writeOnly`.
 
 ---
 
@@ -368,15 +372,15 @@ docker compose -f docker-compose.yml -f docker-compose.frontend.yml up
 | Méthode | Route                       | Corps / Query                                                          | Réponse                                                                                                            | Description                                  |
 |---------|-----------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
 | GET     | `/api/health`               | —                                                                      | `{ status: "ok", uptime, version }`                                                                                | Healthcheck                                  |
-| GET     | `/api/endpoints`            | —                                                                      | `[{ id, name, endpoint, region, bucket, forcePathStyle }]` *(sans secrets, sans publicEndpoint)*                   | Liste des endpoints S3 configurés            |
-| POST    | `/api/presign/upload`       | `{ endpointId, filename, contentType, size }`                          | `{ url, method: "PUT", key, expiresIn, headers: { "Content-Type": "..." } }`                                       | Signe un PUT                                 |
-| POST    | `/api/presign/download`     | `{ endpointId, key }`                                                  | `{ url, method: "GET", key, expiresIn }`                                                                           | Signe un GET                                 |
-| GET     | `/api/files`                | `?endpointId=...&prefix=uploads/&maxKeys=100`                          | `{ endpointId, bucket, files: [{ key, size, lastModified, etag }] }`                                               | Liste les objets du bucket                   |
+| GET     | `/api/endpoints`            | —                                                                      | `[{ id, name, endpoint, region, bucket, buckets: [{ name, writeOnly }], forcePathStyle }]` *(sans secrets, sans publicEndpoint)*                   | Liste des endpoints S3 configurés            |
+| POST    | `/api/presign/upload`       | `{ endpointId, bucket?, filename, contentType, size }`                        | `{ url, method: "PUT", key, expiresIn, headers: { "Content-Type": "..." } }`                                       | Signe un PUT                                 |
+| POST    | `/api/presign/download`     | `{ endpointId, bucket?, key }`                                          | `{ url, method: "GET", key, expiresIn }`                                                                           | Signe un GET                                 |
+| GET     | `/api/files`                | `?endpointId=...&bucket=...&prefix=uploads/&maxKeys=100`              | `{ endpointId, bucket, files: [{ key, size, lastModified, etag }] }`                                               | Liste les objets du bucket                   |
 | GET     | `/api/files/:endpointId/:key/meta` | —                                                              | `{ key, size, contentType, lastModified, etag }` *(via HeadObject)*                                                | Métadonnées d'un objet (optionnel)           |
 
 ### 7.1 Codes d'erreur
 - `400` : corps invalide (zod).
-- `403` : endpoint introuvable ou signature échouée.
+- `403` : endpoint introuvable, bucket inconnu (`UNKNOWN_BUCKET`), bucket en écriture seule (`WRITE_ONLY_BUCKET`) ou signature échouée.
 - `404` : objet introuvable.
 - `413` : taille dépassée.
 - `500` : erreur S3 interne (loggée).

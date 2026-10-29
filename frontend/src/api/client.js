@@ -8,12 +8,12 @@ export async function getEndpoints() {
   return (await request({ url: `${API}/endpoints` })).data;
 }
 
-export async function listFiles(endpointId) {
-  return (await request({ url: `${API}/files?endpointId=${encodeURIComponent(endpointId)}` })).data.files;
+export async function listFiles(endpointId, bucket) {
+  return (await request({ url: `${API}/files?endpointId=${encodeURIComponent(endpointId)}&bucket=${encodeURIComponent(bucket)}` })).data.files;
 }
 
-export async function deleteFile(endpointId, key) {
-  await request({ url: `${API}/files/${encodeURIComponent(endpointId)}/${encodeURIComponent(key)}`, method: 'DELETE' });
+export async function deleteFile(endpointId, bucket, key) {
+  await request({ url: `${API}/files/${encodeURIComponent(endpointId)}/${encodeURIComponent(key)}?bucket=${encodeURIComponent(bucket)}`, method: 'DELETE' });
 }
 
 export async function getConsoleEvents(after) {

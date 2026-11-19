@@ -1,0 +1,117 @@
+{
+  "uid": "rustfs-buckets",
+  "title": "RustFS - Remplissage des buckets",
+  "tags": [
+    "rustfs"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "Remplissage des buckets (% du quota alloué, du plus rempli au moins rempli)",
+      "description": "Espace utilisé / quota du bucket. Les buckets sans quota n'apparaissent pas. Fait défiler le panneau s'il y a beaucoup de buckets.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 42
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum by (bucket) (rustfs_bucket_usage_usage_bytes) / on (bucket) (sum by (bucket) (rustfs_bucket_usage_quota_bytes) > 0)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{bucket}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Value",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "namePlacement": "left",
+        "showUnfilled": true,
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "legend": {
+          "showLegend": false
+        },
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^Value$/",
+          "limit": 1000
+        },
+        "text": {
+          "titleSize": 12,
+          "valueSize": 14
+        },
+        "maxVizHeight": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# RustFS n'expose pas de /metrics Prometheus : il pousse ses metriques en OTLP/HTTP.
+# Le collecteur les recoit et les re-expose pour Prometheus sur :8889.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]

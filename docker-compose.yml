@@ -44,6 +44,11 @@ services:
       - gateway
     environment:
       PORT: ${PORT}
+      # Proxy pour les appels S3 du backend (list/head/delete) ; localhost (RustFS via la gateway) reste en direct
+      NODE_USE_ENV_PROXY: "1"
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
       PRESIGN_EXPIRES_DEFAULT: ${PRESIGN_EXPIRES_DEFAULT}
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE}
       CORS_ORIGINS: ${CORS_ORIGINS}

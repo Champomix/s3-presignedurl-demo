@@ -21,7 +21,8 @@ export function getS3Client(cfg) {
       credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
       forcePathStyle: cfg.forcePathStyle,
       // Certificat auto-signé : ne concerne que les appels serveur (list/head), pas les URLs présignées
-      ...(cfg.allowSelfSigned && { requestHandler: { httpsAgent: new Agent({ rejectUnauthorized: false }) } }),
+      // proxyEnv : un agent personnalisé ne suit pas HTTPS_PROXY / NO_PROXY tout seul (NODE_USE_ENV_PROXY ne couvre que l'agent global)
+      ...(cfg.allowSelfSigned && { requestHandler: { httpsAgent: new Agent({ rejectUnauthorized: false, proxyEnv: process.env }) } }),
       // Sinon le SDK ajoute un checksum CRC32 à l'URL signée, que le navigateur ne peut pas fournir
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',

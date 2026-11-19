@@ -9,7 +9,7 @@ import { ConsolePanel } from './components/ConsolePanel.jsx';
 export default function App() {
   const [endpoints, setEndpoints] = useState([]);
   const [endpointId, setEndpointId] = useState('');
-  const [bucket, setBucket] = useState('');
+  const [bucketChoice, setBucketChoice] = useState('');
   const [files, setFiles] = useState([]);
   const [presigned, setPresigned] = useState(null);
   const [error, setError] = useState(null);
@@ -29,13 +29,12 @@ export default function App() {
       .catch(onError);
   }, [onError]);
 
-  const writeOnly = endpoints.find((e) => e.id === endpointId)?.buckets.find((b) => b.name === bucket)?.writeOnly ?? false;
+  // Bucket dérivé (pas d'effet) : il ne peut jamais être désynchronisé de l'endpoint courant
+  const current = endpoints.find((e) => e.id === endpointId);
+  const bucket = current?.buckets.some((b) => b.name === bucketChoice) ? bucketChoice : (current?.bucket ?? '');
+  const writeOnly = current?.buckets.find((b) => b.name === bucket)?.writeOnly ?? false;
 
-  // Bucket par défaut de l'endpoint à chaque changement d'endpoint
-  useEffect(() => {
-    setBucket(endpoints.find((e) => e.id === endpointId)?.bucket ?? '');
-    setFiles([]);
-  }, [endpoints, endpointId]);
+  useEffect(() => setFiles([]), [endpointId]);
 
   // Bucket en écriture seule : list/get/head interdits, on ne liste pas
   const refresh = useCallback(() => {
@@ -59,7 +58,7 @@ export default function App() {
         value={endpointId}
         onChange={setEndpointId}
         bucket={bucket}
-        onBucketChange={setBucket}
+        onBucketChange={setBucketChoice}
       />
       <UploadPanel endpointId={endpointId} bucket={bucket} onPresigned={setPresigned} onUploaded={refresh} onError={onError} />
       {presigned && <PresignedUrlBox key={presigned.url} presigned={presigned} />}

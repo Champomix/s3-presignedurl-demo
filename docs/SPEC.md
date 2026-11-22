@@ -59,6 +59,8 @@ s3-presigned-demo/
 ├── docker-compose.backend.yml     # Override : backend + storage (front lancé en local)
 ├── docker-compose.frontend.yml    # Override : frontend + storage (backend lancé en local)
 ├── docker-compose.kafka.yml       # Override optionnel : notifications S3 RustFS vers Kafka (SASL/PLAIN + TLS)
+├── docker-compose.monitoring.yml  # Override optionnel : RustFS -> OTLP -> OTel Collector -> Prometheus -> Grafana
+├── monitoring/                    # Config collecteur, Prometheus, provisioning et dashboard Grafana (remplissage des buckets)
 ├── README.md                      # Guide utilisateur
 ├── CLAUDE.md                      # Ce fichier (cadrage pour Claude Code)
 ├── .env.example                   # Variables d'environnement documentées

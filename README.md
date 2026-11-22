@@ -134,6 +134,36 @@ docker compose -f docker-compose.yml -f docker-compose.kafka.yml up --build
 
 Les noms de variables `RUSTFS_NOTIFY_KAFKA_*` et l'ARN n'ont pas été validés sur une instance réelle : en cas d'échec de `put-bucket-notification-configuration`, consulter `docker compose logs rustfs storage-init`.
 
+## Monitoring RustFS (Prometheus et Grafana, optionnel)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up --build
+```
+
+- Grafana : http://localhost:3000 (`GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`, `admin` / `admin` par défaut). Dashboard **RustFS - Remplissage des buckets**, provisionné automatiquement.
+- Prometheus : http://localhost:9090.
+
+RustFS n'expose pas de `/metrics` Prometheus (vérifié : aucun endpoint natif). Il pousse ses métriques en OTLP/HTTP vers un OpenTelemetry Collector, que Prometheus scrute :
+
+```
+RustFS (RUSTFS_OBS_ENDPOINT) -> otel-collector :4318 -> :8889 <- Prometheus <- Grafana
+```
+
+Le dashboard affiche une barre de remplissage par bucket, triée du plus rempli au moins rempli, avec le pourcentage `rustfs_bucket_usage_usage_bytes / rustfs_bucket_usage_quota_bytes`. Seuils : orange à 70 %, rouge à 90 %.
+
+Le panneau est dimensionné pour une quarantaine de buckets (barres compactes, nom du bucket à gauche, pourcentage à droite) et défile au-delà. Les noms de plus d'environ 45 caractères sont tronqués à l'affichage.
+
+- Seuls les buckets **avec quota** apparaissent (un bucket sans quota a `rustfs_bucket_usage_quota_bytes = 0` et est exclu).
+- L'usage vient du scanner de RustFS : il se met à jour avec un délai (de l'ordre de la minute), pas à chaque upload.
+- Définir un quota : `PUT /rustfs/admin/v3/set-bucket-quota?bucket=<nom>` avec le corps `{"quota": <octets>, "quota_type": "HARD"}` (requête signée SigV4 en administrateur), ou depuis la console RustFS. Seule l'API a été vérifiée.
+
+Un second dashboard, **RustFS - Vue d'ensemble**, est dérivé du [dashboard MinIO 25202](https://grafana.com/grafana/dashboards/25202-minio-dashboard/) : capacité, objets, santé des disques et des ensembles d'erasure, débit et erreurs S3, mémoire, CPU, I/O, scanner.
+
+- RustFS 1.0.4 (image `latest`) n'expose pas `/minio/v2/metrics/cluster`, contrairement à ce que dit la [page Bleemeo](https://docs.bleemeo.com/server-monitoring/services/rustfs/) : une requête signée vers ce chemin renvoie `NoSuchBucket`, comme pour n'importe quel chemin inexistant. Il n'y a donc pas de cible Prometheus directe vers RustFS, et la collecte reste OTLP puis collecteur.
+- Les métriques RustFS ont d'autres noms (`rustfs_*`) et d'autres labels (`pool_id`, `set_id`, `op`, `outcome`). Les requêtes du dashboard ont été réécrites en conséquence ; le fichier [minio-dashboard.json](monitoring/grafana/dashboards/minio-dashboard.json) n'est pas l'original de grafana.com.
+- Panneaux retirés faute d'équivalent : les 5 panneaux KMS et "Time Since Last Heal". Approximations : le trafic S3 vient des octets HTTP du serveur, "Capacity" utilise l'espace libre brut, "Time Since Last Scan" la durée depuis la dernière mise à jour de l'usage (en secondes), les erreurs 4xx et 5xx le label `outcome`.
+- Configuration : [monitoring/](monitoring/) (collecteur, Prometheus, provisioning et dashboard Grafana) et [docker-compose.monitoring.yml](docker-compose.monitoring.yml).
+
 ## Migration depuis MinIO
 
 [storage/migrate-minio-to-rustfs.sh](storage/migrate-minio-to-rustfs.sh) (prérequis : `mc`, `jq`) copie vers RustFS les buckets, policies, utilisateurs, groupes, clés d'API (service accounts), notifications d'événements et règles de lifecycle.
@@ -192,7 +222,7 @@ Variables du fichier `.env` (voir [.env.example](.env.example)) :
 | `PRESIGN_EXPIRES_DEFAULT` | `300` | durée de validité des URL présignées (secondes) |
 | `MAX_UPLOAD_SIZE` | `104857600` | taille maximale acceptée avant signature (octets) |
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | origines autorisées sur l'API |
-| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | vide | proxy transmis aux builds Docker (`npm ci` / `npm install`) |
+| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | vide (`NO_PROXY` : `localhost,127.0.0.1`) | proxy transmis aux builds Docker (`npm ci` / `npm install`) et au backend à l'exécution (appels S3 list/head/delete vers un endpoint distant) |
 | `MINIO_TLS_*` | voir ci-dessus | endpoint HTTPS auto-signé (`ENDPOINT`, `REGION`, `BUCKET`, `ACCESS_KEY`, `SECRET_KEY`) |
 | `KAFKA_*` | vide | notifications Kafka, seulement avec `docker-compose.kafka.yml` (`BROKERS`, `TOPIC`, `SASL_USERNAME`, `SASL_PASSWORD`, `CA_FILE`) |
 

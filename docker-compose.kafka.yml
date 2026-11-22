@@ -19,6 +19,17 @@ services:
     volumes:
       - ${KAFKA_CA_FILE:-./storage/kafka-ca.pem}:/certs/kafka-ca.pem:ro
       - rustfs-queue:/queue
+    depends_on:
+      queue-init:
+        condition: service_completed_successfully
+  # RustFS tourne en uid 10001 : sans chown, /queue (volume cree par root) n'est pas inscriptible
+  # et la cible Kafka n'est pas creee ("No notify targets configured")
+  queue-init:
+    image: busybox:latest
+    command: ["chown", "10001:10001", "/queue"]
+    volumes:
+      - rustfs-queue:/queue
+    restart: "no"
   storage-init:
     environment:
       KAFKA_NOTIFY: "on"

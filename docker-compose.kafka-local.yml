@@ -1,0 +1,74 @@
+# Kafka local (KRaft, sans TLS ni SASL) + topic pour les notifications S3 :
+#   docker compose -f docker-compose.yml -f docker-compose.kafka-local.yml up
+# Avec la console : ajouter -f docker-compose.conduktor.yml
+# Alternative au Kafka distant (docker-compose.kafka.yml) : ne pas combiner les deux.
+# Depuis l'hote : localhost:9094. Topic : KAFKA_TOPIC (s3-events par defaut).
+services:
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+    networks:
+      - s3-net
+
+  # One-shot idempotent : cree le topic s'il manque
+  kafka-init:
+    image: apache/kafka:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka:9092", "--create", "--if-not-exists", "--topic", "${KAFKA_TOPIC:-s3-events}"]
+    restart: "no"
+    networks:
+      - s3-net
+
+  rustfs:
+    environment:
+      RUSTFS_NOTIFY_ENABLE: "true"
+      RUSTFS_NOTIFY_KAFKA_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_KAFKA_BROKERS_PRIMARY: kafka:9092
+      RUSTFS_NOTIFY_KAFKA_TOPIC_PRIMARY: ${KAFKA_TOPIC:-s3-events}
+      # Hors de /data : un dossier de /data apparait comme un bucket
+      RUSTFS_NOTIFY_KAFKA_QUEUE_DIR_PRIMARY: /queue
+    volumes:
+      - rustfs-queue:/queue
+    depends_on:
+      queue-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+  # RustFS tourne en uid 10001 : sans chown, /queue (volume cree par root) n'est pas inscriptible
+  queue-init:
+    image: busybox:latest
+    command: ["chown", "10001:10001", "/queue"]
+    volumes:
+      - rustfs-queue:/queue
+    restart: "no"
+  storage-init:
+    environment:
+      KAFKA_NOTIFY: "on"
+
+volumes:
+  kafka-data:
+  rustfs-queue:

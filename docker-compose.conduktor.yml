@@ -1,0 +1,44 @@
+# Console Conduktor sur le Kafka local (a combiner avec docker-compose.kafka-local.yml) :
+#   docker compose -f docker-compose.yml -f docker-compose.kafka-local.yml -f docker-compose.conduktor.yml up
+# Console : http://localhost:8081 (CONDUKTOR_ADMIN_EMAIL / CONDUKTOR_ADMIN_PASSWORD)
+services:
+  conduktor-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: conduktor
+      POSTGRES_USER: conduktor
+      POSTGRES_PASSWORD: conduktor
+    volumes:
+      - conduktor-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduktor"]
+      interval: 5s
+      retries: 20
+    networks:
+      - s3-net
+
+  conduktor-console:
+    image: conduktor/conduktor-console:latest
+    container_name: conduktor-console
+    depends_on:
+      conduktor-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      CDK_DATABASE_URL: postgresql://conduktor:conduktor@conduktor-db:5432/conduktor
+      CDK_ADMIN_EMAIL: ${CONDUKTOR_ADMIN_EMAIL:-admin@demo.local}
+      CDK_ADMIN_PASSWORD: ${CONDUKTOR_ADMIN_PASSWORD:-Admin1234!}
+      CDK_CLUSTERS_0_ID: local
+      CDK_CLUSTERS_0_NAME: Kafka local
+      CDK_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    volumes:
+      - conduktor-data:/var/conduktor
+    networks:
+      - s3-net
+
+volumes:
+  conduktor-db-data:
+  conduktor-data:

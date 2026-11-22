@@ -27,11 +27,14 @@ docker compose -f docker-compose.yml -f docker-compose.storage.yml up
 ## Notifications Kafka (optionnel)
 
 ```bash
+# Kafka local
+docker compose -f docker-compose.yml -f docker-compose.kafka-local.yml up
+# Kafka distant
 ./storage/fetch-kafka-ca.sh kafka.example.lan:9093   # écrit storage/kafka-ca.pem
 docker compose -f docker-compose.yml -f docker-compose.kafka.yml up
 ```
 
-`storage-init` ne configure la notification du bucket que si `docker-compose.kafka.yml` est utilisé (variable `KAFKA_NOTIFY=on`).
+`storage-init` ne configure la notification du bucket que si l'un de ces deux overrides est utilisé (variable `KAFKA_NOTIFY=on`). Détails : [README](../README.md#notifications-dévénements-vers-kafka-optionnel).
 
 ## Migration depuis MinIO
 

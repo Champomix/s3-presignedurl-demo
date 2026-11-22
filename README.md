@@ -120,7 +120,29 @@ Chaque entrée de `endpoints.json` peut déclarer plusieurs buckets de destinati
 
 ## Notifications d'événements vers Kafka (optionnel)
 
-RustFS peut publier un événement S3 dans un topic Kafka (SASL/PLAIN, TLS avec certificat auto-signé) à chaque action sur un objet (`s3:ObjectCreated:*`, `s3:ObjectRemoved:*`, `s3:ObjectAccessed:*`). C'est désactivé par défaut.
+RustFS peut publier un événement S3 dans un topic Kafka à chaque action sur un objet (`s3:ObjectCreated:*`, `s3:ObjectRemoved:*`, `s3:ObjectAccessed:*`). C'est désactivé par défaut. Deux overrides au choix, à ne pas combiner : changer de Kafka revient à changer le fichier passé à `-f`.
+
+### Kafka local (sans TLS ni SASL)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.kafka-local.yml up --build
+```
+
+[docker-compose.kafka-local.yml](docker-compose.kafka-local.yml) démarre un broker Kafka (KRaft, image `apache/kafka`) et crée le topic `KAFKA_TOPIC` (`s3-events` par défaut). Depuis l'hôte : `localhost:9094`. Lire les événements :
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic s3-events --from-beginning
+```
+
+Console Conduktor (optionnelle), en ajoutant [docker-compose.conduktor.yml](docker-compose.conduktor.yml) :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.kafka-local.yml -f docker-compose.conduktor.yml up --build
+```
+
+Console sur http://localhost:8081, connectée au cluster `Kafka local`. Identifiants : `CONDUKTOR_ADMIN_EMAIL` / `CONDUKTOR_ADMIN_PASSWORD` (`admin@demo.local` / `Admin1234!` par défaut). Une erreur "No Authorizer is configured" dans les logs de la console est normale : le broker local n'a pas d'ACL.
+
+### Kafka distant (SASL/PLAIN, TLS avec certificat auto-signé)
 
 1. Renseigner dans `.env` : `KAFKA_BROKERS`, `KAFKA_TOPIC`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_CA_FILE` (voir [.env.example](.env.example)).
 2. Récupérer le certificat du broker dans `storage/kafka-ca.pem` : `./storage/fetch-kafka-ca.sh [host:port]`. Vérifier l'empreinte auprès de l'administrateur du broker.
@@ -130,9 +152,11 @@ RustFS peut publier un événement S3 dans un topic Kafka (SASL/PLAIN, TLS avec 
 docker compose -f docker-compose.yml -f docker-compose.kafka.yml up --build
 ```
 
-[docker-compose.kafka.yml](docker-compose.kafka.yml) configure le target `primary` de RustFS et `storage-init` associe `demo-bucket` à l'ARN `arn:rustfs:sqs:<région>:primary:kafka`. La file d'attente disque (événements non livrés si Kafka est injoignable) est dans le volume `rustfs-queue`, hors de `/data` (un dossier de `/data` apparaîtrait comme un bucket).
+### Fonctionnement commun
 
-Les noms de variables `RUSTFS_NOTIFY_KAFKA_*` et l'ARN n'ont pas été validés sur une instance réelle : en cas d'échec de `put-bucket-notification-configuration`, consulter `docker compose logs rustfs storage-init`.
+Les deux overrides configurent le target `primary` de RustFS et `storage-init` associe `demo-bucket` à l'ARN `arn:rustfs:sqs:<région>:primary:kafka`. La file d'attente disque (événements non livrés si Kafka est injoignable, renvoyés au retour de la connexion) est dans le volume `rustfs-queue`, hors de `/data` (un dossier de `/data` apparaîtrait comme un bucket). `queue-init` donne ce volume à l'utilisateur de RustFS (uid 10001) : sans cela, la cible Kafka n'est pas créée (`No notify targets configured`).
+
+Les logs de RustFS sont dans `/logs/rustfs.log` du conteneur, pas dans `docker logs`. Pour voir la cause d'un échec de connexion Kafka, ajouter `RUSTFS_OBS_LOGGER_LEVEL: debug` à `rustfs.environment` puis `docker exec rustfs grep -i kafka /logs/rustfs.log`.
 
 ## Monitoring RustFS (Prometheus et Grafana, optionnel)
 
@@ -224,7 +248,8 @@ Variables du fichier `.env` (voir [.env.example](.env.example)) :
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | origines autorisées sur l'API |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | vide (`NO_PROXY` : `localhost,127.0.0.1`) | proxy transmis aux builds Docker (`npm ci` / `npm install`) et au backend à l'exécution (appels S3 list/head/delete vers un endpoint distant) |
 | `MINIO_TLS_*` | voir ci-dessus | endpoint HTTPS auto-signé (`ENDPOINT`, `REGION`, `BUCKET`, `ACCESS_KEY`, `SECRET_KEY`) |
-| `KAFKA_*` | vide | notifications Kafka, seulement avec `docker-compose.kafka.yml` (`BROKERS`, `TOPIC`, `SASL_USERNAME`, `SASL_PASSWORD`, `CA_FILE`) |
+| `KAFKA_*` | vide | notifications Kafka. `TOPIC` : local et distant (`s3-events` par défaut en local). `BROKERS`, `SASL_USERNAME`, `SASL_PASSWORD`, `CA_FILE` : seulement `docker-compose.kafka.yml` |
+| `CONDUKTOR_ADMIN_EMAIL` / `CONDUKTOR_ADMIN_PASSWORD` | `admin@demo.local` / `Admin1234!` | compte admin de la console, seulement avec `docker-compose.conduktor.yml` |
 
 Endpoints S3 : [backend/config/endpoints.json](backend/config/endpoints.json). Les valeurs `${VAR}` sont remplacées par les variables d'environnement. Le fichier est lu au démarrage : redémarrer le backend après modification (`docker compose restart backend`).
 
